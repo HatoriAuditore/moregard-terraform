@@ -1,0 +1,38 @@
+vsphere_server       = "vc.example.test"
+vsphere_user         = "terraform@example.test"
+allow_unverified_ssl = false
+
+datacenter = "DC1"
+cluster    = "Cluster1"
+datastore  = "Datastore1"
+vm_folder  = "Terraform"
+
+vms = {
+  example-vm-01 = {
+    template        = "template-name"
+    network         = "portgroup-name"
+    cpu             = 2
+    ram_mb          = 2048
+    root_disk_gb    = 20
+    firmware        = "efi"
+    computer_name   = "example-vm-01"
+    ipv4_address    = "192.0.2.10"
+    ipv4_network    = 24
+    ipv4_gateway    = "192.0.2.1"
+    dns_server_list = ["192.0.2.53","192.0.2.54"]
+    dns_suffix_list = ["example.test"]
+    domain          = "example.test"
+  }
+
+  example-vm-02 = {
+    datacenter   = "DR-DC"
+    cluster      = "Cluster-Edge"
+    datastore    = "Datastore-Edge"
+    vm_folder    = "Terraform/Edge"
+    template     = "ubuntu-24-template"
+    network      = "edge-portgroup"
+    cpu          = 4
+    ram_mb       = 4096
+    root_disk_gb = 40
+  }
+}

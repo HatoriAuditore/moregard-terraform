@@ -1,0 +1,34 @@
+.terraform/
+*.tfstate
+*.tfstate.*
+crash.log
+crash.*.log
+backend.hcl
+backend/config/backend.hcl
+
+# Real variable files
+*.tfvars
+*.tfvars.json
+
+# Keep only examples
+!terraform.tfvars.example
+!.terraform.lock.hcl
+
+# Optional plan files
+*.tfplan
+
+# Backend local files
+backend/.env
+backend/.venv/
+backend/data/
+backend/vm_orchestrator_api.egg-info/
+backend/**/__pycache__/
+
+# Backend local test artifacts
+backend/sample-request*.json
+backend/tfvars.b64
+backend/data/*.bak
+
+# Local troubleshooting files
+copy
+ROCKY_LINUX_10_BACKEND_TESTING.md

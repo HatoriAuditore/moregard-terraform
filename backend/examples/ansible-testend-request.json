@@ -1,0 +1,45 @@
+{
+  "request_id": "REQ-EXAMPLE-BOOTSTRAP-001",
+  "requested_by": "operator",
+  "operation": "plan",
+  "defaults": {
+    "datacenter": "DC1",
+    "cluster": "ClusterA",
+    "datastore": "Datastore01",
+    "vm_folder": "ManagedVMs",
+    "allow_unverified_ssl": true
+  },
+  "vms": [
+    {
+      "name": "config-runner-01",
+      "template": "linux-template",
+      "network": {
+        "network": "VLAN100",
+        "ipv4_address": "192.0.2.20",
+        "ipv4_network": 24,
+        "ipv4_gateway": "192.0.2.1",
+        "dns_server_list": [
+          "192.0.2.53",
+          "192.0.2.54"
+        ],
+        "dns_suffix_list": [
+          "example.test"
+        ],
+        "domain": "example.test"
+      },
+      "hardware": {
+        "cpu": 2,
+        "ram_mb": 2048,
+        "root_disk_gb": 20
+      }
+    }
+  ],
+  "ansible": {
+    "enabled": true,
+    "project_path": "example/ansible-demo",
+    "ref": "main",
+    "limit": "config-runner-01",
+    "playbook": "playbooks/bootstrap_linux.yml",
+    "service_profiles": []
+  }
+}

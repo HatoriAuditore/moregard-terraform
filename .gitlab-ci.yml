@@ -1,0 +1,112 @@
+stages:
+  - checks
+  - deploy
+  - configure
+ 
+workflow:
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+    - if: '$CI_COMMIT_BRANCH == "main"'
+    - if: '$CI_PIPELINE_SOURCE == "pipeline"'
+    - if: '$CI_PIPELINE_SOURCE == "trigger"'
+    - if: '$CI_PIPELINE_SOURCE == "web"'
+    - when: never
+ 
+variables:
+  TF_IN_AUTOMATION: "true"
+  TF_INPUT: "false"
+  TF_ROOT: "."
+  TF_BACKEND_CONFIG_FILE: "/opt/tf-vsphere/backend.hcl"
+  TF_VARS_FILE: "/opt/tf-vsphere/dev.tfvars"
+  TF_PLAN_FILE: "tfplan"
+  TF_PLAN_JSON_FILE: "tfplan.json"
+  TF_PLUGIN_CACHE_DIR: "$CI_PROJECT_DIR/.terraform.d/plugin-cache"
+  GIT_STRATEGY: fetch
+ 
+default:
+  interruptible: true
+  before_script:
+    - mkdir -p "$TF_PLUGIN_CACHE_DIR"
+    - |
+      if [ -n "$TF_VARS_CONTENT_B64" ]; then
+        printf '%s' "$TF_VARS_CONTENT_B64" | base64 -d > "$TF_VARS_FILE"
+        echo "Generated Terraform variables file at $TF_VARS_FILE from TF_VARS_CONTENT_B64"
+      elif [ -f "$TF_VARS_FILE" ]; then
+        echo "Using existing Terraform variables file at $TF_VARS_FILE"
+      else
+        echo "Terraform variables file $TF_VARS_FILE was not found and TF_VARS_CONTENT_B64 is empty"
+      fi
+    - terraform -chdir="$TF_ROOT" init -reconfigure -backend-config="$TF_BACKEND_CONFIG_FILE"
+  cache:
+    key: terraform-$CI_PROJECT_ID
+    paths:
+      - .terraform.d/plugin-cache/
+
+.terraform_job:
+  tags:
+    - terraform-runner
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+    - if: '$CI_COMMIT_BRANCH == "main"'
+    - if: '$CI_PIPELINE_SOURCE == "pipeline"'
+    - if: '$CI_PIPELINE_SOURCE == "trigger"'
+    - if: '$CI_PIPELINE_SOURCE == "web"'
+ 
+validate:
+  extends: .terraform_job
+  stage: checks
+  needs: []
+  script:
+    - terraform -chdir="$TF_ROOT" fmt -check -recursive
+    - terraform -chdir="$TF_ROOT" validate
+ 
+plan:
+  extends: .terraform_job
+  stage: checks
+  needs: []
+  script:
+    - |
+      if [ -f "$TF_VARS_FILE" ]; then
+        terraform -chdir="$TF_ROOT" plan -var-file="$TF_VARS_FILE" -out="$TF_PLAN_FILE"
+      else
+        terraform -chdir="$TF_ROOT" plan -out="$TF_PLAN_FILE"
+      fi
+    - terraform -chdir="$TF_ROOT" show -json "$TF_PLAN_FILE" > "$TF_PLAN_JSON_FILE"
+    - python3 scripts/verify_tfplan_destroy_safety.py "$TF_PLAN_JSON_FILE"
+  artifacts:
+    paths:
+      - $TF_ROOT/$TF_PLAN_FILE
+      - $TF_ROOT/$TF_PLAN_JSON_FILE
+    expire_in: 1 day
+ 
+apply:
+  extends: .terraform_job
+  stage: deploy
+  script:
+    - terraform -chdir="$TF_ROOT" apply -auto-approve "$TF_PLAN_FILE"
+  needs:
+    - job: plan
+      artifacts: true
+  environment:
+    name: production
+  resource_group: terraform-production
+  when: manual
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "main"'
+ 
+configure_vm:
+  stage: configure
+  needs:
+    - job: apply
+  variables:
+    VM_CONFIG_SOURCE_PROJECT: "$CI_PROJECT_PATH"
+    VM_CONFIG_SOURCE_PIPELINE_ID: "$CI_PIPELINE_ID"
+    VM_CONFIG_SOURCE_COMMIT_SHA: "$CI_COMMIT_SHA"
+  trigger:
+    project: $ANSIBLE_PROJECT_PATH
+    branch: $ANSIBLE_REF
+    strategy: depend
+    forward:
+      pipeline_variables: true
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "main" && $CONFIGURE_WITH_ANSIBLE == "true" && $ANSIBLE_PROJECT_PATH && $ANSIBLE_REF'
